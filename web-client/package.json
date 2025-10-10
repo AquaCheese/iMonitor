@@ -1,0 +1,25 @@
+{
+  "name": "imonitor-web-client",
+  "version": "1.0.0",
+  "description": "iMonitor web client for mobile devices",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server dist -p 3000 -c-1",
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development",
+    "watch": "webpack --mode development --watch"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1",
+    "html-webpack-plugin": "^5.5.3",
+    "css-loader": "^6.8.1",
+    "style-loader": "^3.3.3",
+    "copy-webpack-plugin": "^11.0.0",
+    "http-server": "^14.1.1"
+  }
+}
