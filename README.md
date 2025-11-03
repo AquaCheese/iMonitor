@@ -1,79 +1,213 @@
-# iMonitor
+# iMonitor - External Device Display Monitor
 
-A cross-platform solution for using mobile devices (iPad, iPhone, Android) as extended displays for your computer. Similar to Spacedesk and Duet Display, iMonitor allows you to wirelessly extend your desktop to mobile devices with full touch input support.
+A Windows application that detects external phones, tablets, and other devices and allows you to use them as additional monitors.
+
+![iMonitor Logo](Resources/logo.jpg)
 
 ## Features
 
-- 🖥️ **Cross-platform desktop server** - Works on Windows, macOS, and Linux
-- 📱 **Mobile client support** - Native apps for iOS and Android
-- 🌐 **Web client** - Use any device with a modern browser
-- 🔄 **Real-time streaming** - Low-latency screen mirroring
-- 👆 **Touch input forwarding** - Use your mobile device as a touchscreen
-- 🎯 **Multi-display support** - Extend or mirror multiple displays
-- ⚙️ **Configurable quality** - Adjust streaming quality for your network
-- 🔌 **USB-C wired connection** - Connect iPad directly via USB-C for ultra-low latency
-- ⚡ **High performance** - Up to 60fps streaming with hardware acceleration
-- 🔋 **Power delivery** - Charge your iPad while using it as a display
+- **Automatic Device Detection**: Detects when external devices (phones, tablets, monitors) are connected via USB
+- **Real Virtual Monitors**: Creates actual virtual monitors that appear in Windows Display Settings
+- **Live Display Streaming**: Streams display content to connected devices in real-time
+- **System Tray Integration**: Runs quietly in the system tray with easy access
+- **One-Click Monitor Creation**: Simple button to create virtual monitors for detected devices
+- **Windows Integration**: Virtual monitors work with Windows display arrangement, resolution settings, and multi-monitor features
+- **Device Management**: View and manage all connected devices from a central interface
+- **HTTP Streaming**: Serves display content via HTTP for mobile devices to connect through web browsers
+- **Auto-Start Support**: Option to start automatically with Windows
+- **Notification System**: Get notified when devices are connected or disconnected
 
-## Project Structure
+## System Requirements
 
-```
-iMonitor/
-├── desktop-server/     # Electron-based desktop application
-├── web-client/         # Browser-based client application
-├── mobile-client/      # React Native mobile application
-├── ios-usb-client/     # Native iOS app for USB-C connection
-├── shared/            # Shared utilities and protocols
-└── docs/              # Documentation and guides
-```
+- Windows 10/11 (64-bit)
+- .NET 8.0 Runtime
+- **Administrator privileges (REQUIRED for virtual monitor creation)**
+- Network connectivity for device streaming (Wi-Fi recommended)
 
-## Quick Start
+## Installation
 
-### Desktop Server (Host Computer)
+### Option 1: Build from Source
+
+1. **Prerequisites**:
+   - Install [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+   - Install Visual Studio 2022 or Visual Studio Code with C# extension
+
+2. **Clone and Build**:
+   ```bash
+   git clone <repository-url>
+   cd iMonitor
+   dotnet restore
+   dotnet build --configuration Release
+   ```
+
+3. **Run**:
+   ```bash
+   dotnet run --project iMonitor.csproj
+   ```
+
+### Option 2: Publish Self-Contained Executable
+
 ```bash
-cd desktop-server
-npm install
-npm start
+dotnet publish -c Release -r win-x64 --self-contained true
 ```
 
-### Option 1: USB-C Connection (iPad Only - Recommended)
-1. Connect your iPad to your computer using a USB-C cable
-2. The desktop app will automatically detect your iPad
-3. Select your display and click "Start Streaming" next to your iPad
-4. Enjoy ultra-low latency extended display with charging!
+The executable will be in `bin/Release/net8.0-windows/win-x64/publish/`
 
-### Option 2: Web Client (Any Mobile Device)
-Open your mobile browser and navigate to the IP address shown by the desktop server.
+## Usage
 
-### Option 3: Native Mobile App
-Install the iMonitor app from the App Store (iOS) or Google Play Store (Android).
+### Getting Started
 
-## How It Works
+1. **Launch the Application**:
+   - Run the executable or use `dotnet run`
+   - The application will start minimized to the system tray
 
-### Wireless Mode
-1. **Screen Capture**: The desktop server captures your screen content
-2. **Video Encoding**: Screen content is encoded into a video stream
-3. **Network Streaming**: Stream is sent over your local network using WebSocket
-4. **Display**: Mobile/web client receives and displays the stream
-5. **Input Forwarding**: Touch/mouse events are sent back to the desktop
+2. **Access the Interface**:
+   - Double-click the system tray icon to open the main window
+   - Right-click the system tray icon for quick actions
 
-### USB-C Wired Mode (iPad)
-1. **USB Detection**: Desktop server automatically detects connected iPad
-2. **High-Speed Transfer**: Screen data is sent directly via USB 3.0/Thunderbolt
-3. **Hardware Acceleration**: Uses GPU encoding/decoding for 60fps performance
-4. **Low Latency**: Direct connection eliminates network latency
-5. **Power Delivery**: iPad charges while in use
+### Using External Devices as Virtual Monitors
+
+1. **Connect Your Device**:
+   - Connect your phone, tablet, or external monitor via USB
+   - Wait for the device to be detected (may take a few seconds)
+
+2. **Create Virtual Monitor**:
+   - **IMPORTANT**: Run iMonitor as Administrator for virtual monitor creation
+   - Open the main iMonitor window
+   - Go to the "Connected Devices" tab
+   - Find your device in the list
+   - Click "Connect as Monitor" button
+   - A virtual monitor will be created and appear in Windows Display Settings
+
+3. **Connect Device to Stream**:
+   - For mobile devices, connect to the same Wi-Fi network
+   - Open a web browser on your device
+   - Navigate to the provided IP address (displayed in the connection dialog)
+   - Your device will now display the content of the virtual monitor
+
+4. **Configure Display in Windows**:
+   - Open Windows Display Settings (Win + P or Settings > System > Display)
+   - You'll see the new "iMonitor Virtual Display" listed
+   - Arrange, extend, duplicate, or set resolution as with any physical monitor
+   - Drag windows to the virtual monitor area to display them on your connected device
+
+### System Tray Features
+
+- **Double-click**: Open main window
+- **Right-click menu**:
+  - Show iMonitor: Open the main interface
+  - Exit: Close the application
+
+### Settings
+
+Access settings from the "Settings" tab in the main window:
+
+- **Start with Windows**: Automatically start iMonitor when Windows boots
+- **Show Notifications**: Display notifications when devices connect/disconnect
+- **Minimize to Tray**: Minimize to system tray instead of taskbar
+
+## Device Compatibility
+
+### Supported Device Types
+- **Tablets**: iPads, Android tablets, Windows tablets
+- **Phones**: iPhones, Android phones (with display output capability)
+- **External Monitors**: USB-C monitors, DisplayPort monitors
+- **Laptops**: Secondary laptops or computers
+
+### Connection Methods
+- **Virtual Monitor + HTTP Streaming**: Creates real Windows monitors with web-based display streaming
+- **Wi-Fi Network**: Devices connect via web browser to stream content
+- **USB Device Detection**: Automatic discovery of connected devices
+- **Registry-based Virtual Display Driver**: Creates actual monitor entries in Windows
+
+## Technical Details
+
+### Architecture
+- **WPF Application**: Modern Windows desktop interface
+- **Device Detection**: Uses Windows Management Instrumentation (WMI)
+- **Display Management**: Windows Display APIs
+- **System Integration**: Registry settings, system tray
+
+### Key Components
+- **DeviceMonitorService**: Monitors USB device connections
+- **VirtualDisplayDriverService**: Creates and manages virtual display devices
+- **DisplayStreamingService**: Handles real-time display streaming to connected devices
+- **DisplayManagementService**: Manages display configuration and virtual monitor integration
+- **SystemTrayService**: Handles system tray functionality
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Devices Not Detected**:
+   - Ensure USB debugging is enabled on mobile devices
+   - Try different USB ports or cables
+   - Run as administrator for better device access
+
+2. **Display Connection Fails**:
+   - Check if the device supports display output
+   - Install device-specific drivers if needed
+   - Verify USB-C DisplayPort Alt Mode support
+
+3. **Application Won't Start**:
+   - Ensure .NET 8.0 Runtime is installed
+   - Check Windows Event Viewer for error details
+   - Try running as administrator
+
+### Device-Specific Notes
+
+- **iPhones/iPads**: Require Lightning to USB-C adapter with display support
+- **Android Devices**: Must support USB-C DisplayPort Alt Mode or use apps like Duet Display
+- **USB-C Monitors**: Should work directly with compatible ports
 
 ## Development
 
-Each component can be developed independently:
+### Project Structure
+```
+iMonitor/
+├── Models/           # Data models
+├── Services/         # Business logic services
+├── Views/           # WPF windows and controls
+├── ViewModels/      # MVVM view models
+├── Resources/       # Images, icons, resources
+└── App.xaml/cs      # Application entry point
+```
 
-- **Desktop Server**: Electron + Node.js + USB Device Management
-- **Web Client**: HTML5 + WebSocket + Canvas
-- **Mobile Client**: React Native
-- **iOS USB Client**: Native iOS + External Accessory Framework
-- **Shared**: Common protocols and utilities
+### Key Dependencies
+- **System.Management**: WMI device detection
+- **Microsoft.Win32.Registry**: Windows registry access
+- **System.Drawing.Common**: Icon and image handling
+
+### Building for Distribution
+
+1. **Create Release Build**:
+   ```bash
+   dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+   ```
+
+2. **Create Installer** (optional):
+   - Use tools like WiX Toolset or Inno Setup
+   - Include .NET runtime if not self-contained
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly on different Windows versions
+5. Submit a pull request
 
 ## License
 
-MIT License - see LICENSE file for details.
+[Add your license information here]
+
+## Support
+
+For issues, questions, or feature requests:
+- Create an issue in the repository
+- Check the troubleshooting section
+- Review Windows Event Viewer for error details
+
+---
+
+**Note**: This application provides a framework for device detection and display management. Actual display extension to mobile devices requires additional software or hardware support depending on the device type and connection method.
