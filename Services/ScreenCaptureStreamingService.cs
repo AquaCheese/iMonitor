@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Forms;
+using WinForms = System.Windows.Forms;
 using iMonitor.Models;
 
 namespace iMonitor.Services;
@@ -86,10 +86,10 @@ public class ScreenCaptureStreamingService : IDisposable
 
     #endregion
 
-    private readonly Dictionary<string, StreamingSession> _streamingSessions = new();
+    private readonly Dictionary<string, Models.StreamingSession> _streamingSessions = new();
     private readonly Dictionary<string, VirtualMonitorInfo> _virtualMonitors = new();
     private readonly IOSDeviceCommunicationService _iosCommService;
-    private readonly Timer _captureTimer;
+    private readonly System.Threading.Timer _captureTimer;
     private readonly object _lockObject = new object();
     private bool _isCapturing = false;
     private bool _disposed = false;
@@ -109,7 +109,7 @@ public class ScreenCaptureStreamingService : IDisposable
         _iosCommService = iosCommService ?? throw new ArgumentNullException(nameof(iosCommService));
         
         // Initialize capture timer (will be started when needed)
-        _captureTimer = new Timer(CaptureAndStreamFrames, null, Timeout.Infinite, Timeout.Infinite);
+        _captureTimer = new System.Threading.Timer(CaptureAndStreamFrames, null, Timeout.Infinite, Timeout.Infinite);
     }
 
     public async Task<bool> StartStreamingAsync(VirtualMonitor virtualMonitor, ExternalDevice targetDevice)
@@ -167,7 +167,7 @@ public class ScreenCaptureStreamingService : IDisposable
             }
 
             // Create streaming session
-            var session = new StreamingSession
+            var session = new Models.StreamingSession
             {
                 SessionId = sessionId,
                 VirtualMonitor = virtualMonitor,
@@ -253,7 +253,7 @@ public class ScreenCaptureStreamingService : IDisposable
         }
     }
 
-    public List<StreamingSession> GetActiveStreams()
+    public List<Models.StreamingSession> GetActiveStreams()
     {
         lock (_lockObject)
         {
@@ -327,7 +327,7 @@ public class ScreenCaptureStreamingService : IDisposable
         try
         {
             // Get monitor bounds from Windows
-            var screen = Screen.AllScreens.FirstOrDefault(s => s.DeviceName == virtualMonitor.WindowsDeviceName);
+            var screen = WinForms.Screen.AllScreens.FirstOrDefault(s => s.DeviceName == virtualMonitor.WindowsDeviceName);
             if (screen == null)
             {
                 // If not found in screens, create virtual bounds
@@ -558,52 +558,3 @@ public class ScreenCaptureStreamingService : IDisposable
         }
     }
 }
-
-#region Supporting Classes
-
-public class StreamingSession
-{
-    public string SessionId { get; set; } = string.Empty;
-    public VirtualMonitor VirtualMonitor { get; set; } = new();
-    public ExternalDevice TargetDevice { get; set; } = new();
-    public VirtualMonitorInfo MonitorInfo { get; set; } = new();
-    public bool IsActive { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime LastFrameTime { get; set; }
-    public int TargetFps { get; set; } = 60;
-    public int Quality { get; set; } = 85;
-    public long FramesSent { get; set; }
-    public long BytesSent { get; set; }
-}
-
-public class VirtualMonitorInfo
-{
-    public string MonitorId { get; set; } = string.Empty;
-    public string DeviceName { get; set; } = string.Empty;
-    public Rectangle Bounds { get; set; }
-    public Rectangle WorkingArea { get; set; }
-    public bool IsPrimary { get; set; }
-    public int BitsPerPixel { get; set; }
-}
-
-public class StreamingSessionEventArgs : EventArgs
-{
-    public StreamingSession Session { get; set; } = new();
-}
-
-public class StreamingErrorEventArgs : EventArgs
-{
-    public string SessionId { get; set; } = string.Empty;
-    public string Error { get; set; } = string.Empty;
-}
-
-public class PerformanceMetrics : EventArgs
-{
-    public double CaptureTime { get; set; }
-    public int FramesCaptured { get; set; }
-    public int ActiveSessions { get; set; }
-    public long BytesPerSecond { get; set; }
-    public DateTime Timestamp { get; set; }
-}
-
-#endregion

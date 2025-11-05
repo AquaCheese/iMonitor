@@ -414,30 +414,25 @@ public class DisplayManagementService : IDisposable
 
     public List<VirtualMonitor> GetActiveVirtualMonitors()
     {
-        return _virtualDisplayService.GetActiveVirtualMonitors();
-    }
-
-    private void OnStreamingStarted(object? sender, string virtualMonitorId)
-    {
-        System.Diagnostics.Debug.WriteLine($"Streaming started for virtual monitor: {virtualMonitorId}");
-    }
-
-    private void OnStreamingStopped(object? sender, string virtualMonitorId)
-    {
-        System.Diagnostics.Debug.WriteLine($"Streaming stopped for virtual monitor: {virtualMonitorId}");
-    }
-
-    private void OnStreamingError(object? sender, StreamingError error)
-    {
-        System.Diagnostics.Debug.WriteLine($"Streaming error for virtual monitor {error.VirtualMonitorId}: {error.Message}");
-    }
-
-    public List<VirtualMonitor> GetActiveVirtualMonitors()
-    {
         return _iddCxDisplayService.GetActiveVirtualMonitors();
     }
 
-    public List<StreamingSession> GetActiveStreamingSessions()
+    private void OnStreamingStarted(object? sender, StreamingSessionEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"Streaming started for session: {e.Session.SessionId}");
+    }
+
+    private void OnStreamingStopped(object? sender, StreamingSessionEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"Streaming stopped for session: {e.Session.SessionId}");
+    }
+
+    private void OnStreamingError(object? sender, StreamingErrorEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"Streaming error for session {e.SessionId}: {e.Error}");
+    }
+
+    public List<Models.StreamingSession> GetActiveStreamingSessions()
     {
         return _streamingService.GetActiveStreams();
     }

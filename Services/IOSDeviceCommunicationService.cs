@@ -55,20 +55,9 @@ public class IOSDeviceCommunicationService : IDisposable
     #region iOS Communication Protocol
 
     /// <summary>
-    /// iOS device communication protocol messages
+    /// iOS device communication protocol messages (using shared enum)
     /// </summary>
-    private enum IOSMessageType : uint
-    {
-        DeviceInfo = 0x00010001,
-        PairingRequest = 0x00010002,
-        PairingResponse = 0x00010003,
-        DisplayStreamStart = 0x00020001,
-        DisplayStreamStop = 0x00020002,
-        DisplayFrame = 0x00020003,
-        TouchInput = 0x00030001,
-        Heartbeat = 0x00040001,
-        Error = 0x00FF0001
-    }
+
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     private struct IOSMessageHeader
@@ -80,23 +69,7 @@ public class IOSDeviceCommunicationService : IDisposable
         public uint Checksum;          // Simple checksum for error detection
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    private struct IOSDeviceInfo
-    {
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string DeviceName;
-        
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string DeviceModel;
-        
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
-        public string IOSVersion;
-        
-        public uint ScreenWidth;
-        public uint ScreenHeight;
-        public uint ScreenScale;        // 1x, 2x, 3x for Retina displays
-        public uint SupportedFormats;   // Bitfield for supported video formats
-    }
+    // Using IOSDeviceInfo from Models.IOSModels
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     private struct IOSTouchInput
@@ -115,7 +88,7 @@ public class IOSDeviceCommunicationService : IDisposable
 
     private readonly Dictionary<string, IOSDeviceConnection> _deviceConnections = new();
     private readonly Dictionary<string, IOSDeviceInfo> _deviceInfos = new();
-    private readonly Timer _heartbeatTimer;
+    private readonly System.Threading.Timer _heartbeatTimer;
     private readonly object _lockObject = new object();
     private uint _sequenceNumber = 1;
     private bool _disposed = false;
@@ -129,7 +102,7 @@ public class IOSDeviceCommunicationService : IDisposable
     public IOSDeviceCommunicationService()
     {
         // Start heartbeat timer to maintain connections
-        _heartbeatTimer = new Timer(SendHeartbeats, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _heartbeatTimer = new System.Threading.Timer(SendHeartbeats, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
     public async Task<bool> StartServiceAsync()
@@ -620,49 +593,3 @@ public class IOSDeviceCommunicationService : IDisposable
         }
     }
 }
-
-#region Supporting Classes
-
-public class IOSDeviceConnection : IDisposable
-{
-    public string DeviceId { get; set; } = string.Empty;
-    public string DeviceName { get; set; } = string.Empty;
-    public bool IsConnected { get; set; }
-    public bool IsPaired { get; set; }
-    public bool IsStreaming { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime LastHeartbeat { get; set; }
-
-    public void Dispose()
-    {
-        // Close actual connection resources here
-        IsConnected = false;
-        IsStreaming = false;
-    }
-}
-
-public class IOSMessage
-{
-    public IOSMessageType MessageType { get; set; }
-    public byte[]? Data { get; set; }
-    public DateTime Timestamp { get; set; }
-}
-
-public class IOSDeviceEventArgs : EventArgs
-{
-    public ExternalDevice? Device { get; set; }
-    public IOSDeviceInfo? DeviceInfo { get; set; }
-}
-
-public class IOSTouchEventArgs : EventArgs
-{
-    public string DeviceId { get; set; } = string.Empty;
-    public uint TouchId { get; set; }
-    public uint TouchType { get; set; }
-    public float X { get; set; }
-    public float Y { get; set; }
-    public float Pressure { get; set; }
-    public DateTime Timestamp { get; set; }
-}
-
-#endregion
