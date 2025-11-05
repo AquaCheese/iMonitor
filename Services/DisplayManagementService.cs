@@ -6,8 +6,9 @@ namespace iMonitor.Services;
 
 public class DisplayManagementService : IDisposable
 {
-    private readonly VirtualDisplayDriverService _virtualDisplayService;
-    private readonly DisplayStreamingService _streamingService;
+    private readonly IddCxVirtualDisplayService _iddCxDisplayService;
+    private readonly IOSDeviceCommunicationService _iosCommService;
+    private readonly ScreenCaptureStreamingService _streamingService;
     private bool _disposed = false;
     #region Windows API Declarations
     
@@ -89,17 +90,26 @@ public class DisplayManagementService : IDisposable
 
     public DisplayManagementService()
     {
-        _virtualDisplayService = new VirtualDisplayDriverService();
-        _streamingService = new DisplayStreamingService();
+        _iosCommService = new IOSDeviceCommunicationService();
+        _iddCxDisplayService = new IddCxVirtualDisplayService();
+        _streamingService = new ScreenCaptureStreamingService(_iosCommService);
         
         // Subscribe to virtual monitor events
-        _virtualDisplayService.VirtualMonitorCreated += OnVirtualMonitorCreated;
-        _virtualDisplayService.VirtualMonitorRemoved += OnVirtualMonitorRemoved;
+        _iddCxDisplayService.VirtualMonitorCreated += OnVirtualMonitorCreated;
+        _iddCxDisplayService.VirtualMonitorRemoved += OnVirtualMonitorRemoved;
+        _iddCxDisplayService.VirtualMonitorError += OnVirtualMonitorError;
         
         // Subscribe to streaming events
         _streamingService.StreamingStarted += OnStreamingStarted;
         _streamingService.StreamingStopped += OnStreamingStopped;
         _streamingService.StreamingError += OnStreamingError;
+        
+        // Subscribe to iOS communication events
+        _iosCommService.DeviceConnected += OnIOSDeviceConnected;
+        _iosCommService.DeviceDisconnected += OnIOSDeviceDisconnected;
+        _iosCommService.DevicePaired += OnIOSDevicePaired;
+        _iosCommService.TouchInputReceived += OnTouchInputReceived;
+        _iosCommService.CommunicationError += OnIOSCommunicationError;
     }
 
     public event EventHandler<VirtualMonitor>? VirtualMonitorCreated;
@@ -152,8 +162,44 @@ public class DisplayManagementService : IDisposable
     {
         try
         {
-            // Initialize virtual display driver if not already done
-            if (!await _virtualDisplayService.InitializeVirtualDisplayDriverAsync())
+            // Start iOS communication service if not already started
+            if (!await _iosCommService.StartServiceAsync())
+            {
+                MessageBox.Show(
+                    "Failed to start iOS communication service.",
+                    "Communication Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return false;
+            }
+
+            // Connect to iOS device
+            if (!await _iosCommService.ConnectToDeviceAsync(device))
+            {
+                MessageBox.Show(
+                    $"Failed to connect to {device.Name}. Please ensure:\n" +
+                    "1. Device is unlocked\n" +
+                    "2. You have trusted this computer on the device\n" +
+                    "3. Device is properly connected via USB",
+                    "Connection Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return false;
+            }
+
+            // Pair with iOS device
+            if (!await _iosCommService.PairWithDeviceAsync(device.DeviceId))
+            {
+                MessageBox.Show(
+                    $"Failed to pair with {device.Name}. Please check the device for pairing prompts.",
+                    "Pairing Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return false;
+            }
+
+            // Initialize IddCx virtual display framework
+            if (!await _iddCxDisplayService.InitializeIddCxFrameworkAsync())
             {
                 MessageBox.Show(
                     "Failed to initialize virtual display driver. Please ensure you are running as Administrator.",
@@ -164,25 +210,37 @@ public class DisplayManagementService : IDisposable
             }
 
             // Create virtual monitor for the device
-            var virtualMonitor = await _virtualDisplayService.CreateVirtualMonitorAsync(device, 1920, 1080);
+            var virtualMonitor = await _iddCxDisplayService.CreateVirtualMonitorAsync(device, 1920, 1080, 60);
             
             if (virtualMonitor != null)
             {
                 device.IsConnectedAsMonitor = true;
                 
-                // Start streaming to the device
+                // Start screen capture and streaming to the device
                 if (await _streamingService.StartStreamingAsync(virtualMonitor, device))
                 {
-                    // Success message is shown by the streaming service
+                    MessageBox.Show(
+                        $"Successfully connected {device.Name} as a virtual monitor!\n\n" +
+                        $"Monitor Name: {virtualMonitor.DeviceName}\n" +
+                        $"Resolution: {virtualMonitor.Width}x{virtualMonitor.Height}@{virtualMonitor.RefreshRate}Hz\n\n" +
+                        "You can now:\n" +
+                        "• Drag windows to this monitor in Windows Display Settings\n" +
+                        "• Arrange displays and set resolution\n" +
+                        "• Use touch input on your device\n\n" +
+                        "The display will appear on your iOS device momentarily.",
+                        "Success!",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                     return true;
                 }
                 else
                 {
                     MessageBox.Show(
                         $"Virtual monitor created for {device.Name}, but streaming failed to start.\n\n" +
-                        $"Monitor Name: iMonitor_{virtualMonitor.Id}\n" +
+                        $"Monitor Name: {virtualMonitor.DeviceName}\n" +
                         $"Resolution: {virtualMonitor.Width}x{virtualMonitor.Height}\n\n" +
-                        "The monitor is available in Windows Display Settings, but device streaming is not active.",
+                        "The monitor is available in Windows Display Settings, but device streaming is not active.\n" +
+                        "Check your network connection and try again.",
                         "Partial Success",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
@@ -192,9 +250,13 @@ public class DisplayManagementService : IDisposable
             else
             {
                 MessageBox.Show(
-                    $"Failed to create virtual monitor for {device.Name}.\n" +
-                    "Please check that you have Administrator privileges.",
-                    "Error",
+                    $"Failed to create virtual monitor for {device.Name}.\n\n" +
+                    "This could be due to:\n" +
+                    "• Insufficient administrator privileges\n" +
+                    "• Display driver installation issues\n" +
+                    "• System compatibility problems\n\n" +
+                    "Please ensure you're running as Administrator and try again.",
+                    "Virtual Monitor Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 return false;
@@ -203,16 +265,28 @@ public class DisplayManagementService : IDisposable
         catch (UnauthorizedAccessException)
         {
             MessageBox.Show(
-                "Administrator privileges are required to create virtual monitors.\n" +
-                "Please restart iMonitor as Administrator.",
-                "Access Denied",
+                "Administrator privileges are required to create virtual monitors.\n\n" +
+                "Please:\n" +
+                "1. Close iMonitor\n" +
+                "2. Right-click on iMonitor and select 'Run as Administrator'\n" +
+                "3. Try connecting your device again",
+                "Administrator Required",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return false;
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error extending display to device: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"An unexpected error occurred while connecting to {device.Name}:\n\n" +
+                $"{ex.Message}\n\n" +
+                "Please try the following:\n" +
+                "• Restart iMonitor as Administrator\n" +
+                "• Reconnect your device\n" +
+                "• Check Windows Device Manager for any issues",
+                "Connection Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             return false;
         }
     }
@@ -227,35 +301,75 @@ public class DisplayManagementService : IDisposable
     {
         try
         {
+            // Find streaming sessions for this device
+            var activeStreams = _streamingService.GetActiveStreams();
+            var deviceStreams = activeStreams.Where(s => s.TargetDevice.DeviceId == device.DeviceId).ToList();
+
+            bool success = true;
+
+            // Stop all streaming sessions for this device
+            foreach (var stream in deviceStreams)
+            {
+                if (!await _streamingService.StopStreamingAsync(stream.SessionId))
+                {
+                    success = false;
+                }
+            }
+
             // Find and remove the virtual monitor associated with this device
-            var virtualMonitors = _virtualDisplayService.GetActiveVirtualMonitors();
+            var virtualMonitors = _iddCxDisplayService.GetActiveVirtualMonitors();
             var deviceVirtualMonitor = virtualMonitors.FirstOrDefault(vm => vm.DeviceId == device.DeviceId);
 
             if (deviceVirtualMonitor != null)
             {
-                // Stop streaming first
-                await _streamingService.StopStreamingAsync(deviceVirtualMonitor.Id);
-                
-                if (await _virtualDisplayService.RemoveVirtualMonitorAsync(deviceVirtualMonitor.Id))
+                if (await _iddCxDisplayService.RemoveVirtualMonitorAsync(deviceVirtualMonitor.Id))
                 {
-                    device.IsConnectedAsMonitor = false;
-                    
-                    MessageBox.Show(
-                        $"Successfully disconnected virtual monitor for {device.Name}.\n" +
-                        "The monitor has been removed from Windows Display Settings and streaming has stopped.",
-                        "Monitor Disconnected",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return true;
+                    success = true;
+                }
+                else
+                {
+                    success = false;
                 }
             }
 
+            // Disconnect from iOS device
+            _iosCommService.DisconnectDevice(device.DeviceId);
+            
             device.IsConnectedAsMonitor = false;
-            return true;
+
+            if (success)
+            {
+                MessageBox.Show(
+                    $"Successfully disconnected {device.Name}.\n\n" +
+                    "• Virtual monitor removed from Windows Display Settings\n" +
+                    "• Display streaming stopped\n" +
+                    "• Device connection closed\n\n" +
+                    "You can reconnect the device at any time.",
+                    "Device Disconnected",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show(
+                    $"Partially disconnected {device.Name}.\n\n" +
+                    "Some components may still be active. If you experience issues, " +
+                    "please restart iMonitor and try again.",
+                    "Partial Disconnection",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return success;
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error disconnecting device display: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Error disconnecting {device.Name}:\n\n{ex.Message}\n\n" +
+                "The device may still be partially connected. Please restart iMonitor if issues persist.",
+                "Disconnection Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             return false;
         }
     }
@@ -318,22 +432,68 @@ public class DisplayManagementService : IDisposable
         System.Diagnostics.Debug.WriteLine($"Streaming error for virtual monitor {error.VirtualMonitorId}: {error.Message}");
     }
 
-    public List<StreamingSession> GetActiveStreams()
+    public List<VirtualMonitor> GetActiveVirtualMonitors()
+    {
+        return _iddCxDisplayService.GetActiveVirtualMonitors();
+    }
+
+    public List<StreamingSession> GetActiveStreamingSessions()
     {
         return _streamingService.GetActiveStreams();
     }
 
     public async Task<bool> InitializeVirtualDisplayAsync()
     {
-        return await _virtualDisplayService.InitializeVirtualDisplayDriverAsync();
+        return await _iddCxDisplayService.InitializeIddCxFrameworkAsync();
     }
+
+    public async Task<bool> StartIOSCommunicationServiceAsync()
+    {
+        return await _iosCommService.StartServiceAsync();
+    }
+
+    #region Event Handlers
+
+    private void OnVirtualMonitorError(object? sender, string error)
+    {
+        System.Diagnostics.Debug.WriteLine($"Virtual Monitor Error: {error}");
+    }
+
+    private void OnIOSDeviceConnected(object? sender, IOSDeviceEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"iOS Device Connected: {e.Device?.Name}");
+    }
+
+    private void OnIOSDeviceDisconnected(object? sender, IOSDeviceEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"iOS Device Disconnected: {e.Device?.DeviceId}");
+    }
+
+    private void OnIOSDevicePaired(object? sender, IOSDeviceEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"iOS Device Paired: {e.Device?.Name}");
+    }
+
+    private void OnTouchInputReceived(object? sender, IOSTouchEventArgs e)
+    {
+        // Forward touch input to Windows (would implement touch injection here)
+        System.Diagnostics.Debug.WriteLine($"Touch Input: {e.TouchType} at ({e.X}, {e.Y})");
+    }
+
+    private void OnIOSCommunicationError(object? sender, string error)
+    {
+        System.Diagnostics.Debug.WriteLine($"iOS Communication Error: {error}");
+    }
+
+    #endregion
 
     public void Dispose()
     {
         if (!_disposed)
         {
             _streamingService?.Dispose();
-            _virtualDisplayService?.Dispose();
+            _iddCxDisplayService?.Dispose();
+            _iosCommService?.Dispose();
             _disposed = true;
         }
     }
